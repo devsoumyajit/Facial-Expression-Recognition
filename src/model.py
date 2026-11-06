@@ -8,15 +8,33 @@ def build_model():
         layers.Input(shape=(48, 48, 1)),
 
         # Convolution Block 1
-        layers.Conv2D(32, (3, 3), activation="relu"),
+        layers.Conv2D(
+            32,
+            (3, 3),
+            padding="same",
+            activation="relu"
+        ),
+        layers.BatchNormalization(),
         layers.MaxPooling2D((2, 2)),
 
         # Convolution Block 2
-        layers.Conv2D(64, (3, 3), activation="relu"),
+        layers.Conv2D(
+            64,
+            (3, 3),
+            padding="same",
+            activation="relu"
+        ),
+        layers.BatchNormalization(),
         layers.MaxPooling2D((2, 2)),
 
         # Convolution Block 3
-        layers.Conv2D(128, (3, 3), activation="relu"),
+        layers.Conv2D(
+            128,
+            (3, 3),
+            padding="same",
+            activation="relu"
+        ),
+        layers.BatchNormalization(),
         layers.MaxPooling2D((2, 2)),
 
         # Flatten
@@ -24,8 +42,6 @@ def build_model():
 
         # Fully Connected Layer
         layers.Dense(128, activation="relu"),
-
-        # Prevent overfitting
         layers.Dropout(0.5),
 
         # Output: 7 expressions
@@ -39,5 +55,4 @@ if __name__ == "__main__":
     model = build_model()
 
     print("FACIAL EXPRESSION CNN MODEL")
-
     model.summary()

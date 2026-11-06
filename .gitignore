@@ -5,16 +5,7 @@ venv/
 # Python cache
 __pycache__/
 *.py[cod]
-
-# Dataset
-dataset/
-
-# Generated files
-outputs/
-database/*.db
-
-# Environment variables
-.env
+*.pyc
 
 # VS Code settings
 .vscode/
@@ -22,3 +13,16 @@ database/*.db
 # Operating system files
 .DS_Store
 Thumbs.db
+
+# Environment variables
+.env
+
+# Generated database
+database/*.db
+
+# Optional generated files
+outputs/
+
+# Optional temporary files
+*.h5
+*.pkl
