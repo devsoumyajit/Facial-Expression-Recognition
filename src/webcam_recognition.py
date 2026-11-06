@@ -24,8 +24,9 @@ CASCADE_PATH = os.path.join(
 
 CAMERA_INDEX = 0
 
-WINDOW_NAME = "Real-Time Facial Expression Recognition"
-
+WINDOW_NAME = (
+    "Real-Time Facial Expression Recognition"
+)
 
 CLASS_NAMES = [
     "Angry",
@@ -118,27 +119,37 @@ def predict_expression(model, face):
         verbose=0
     )
 
-    predicted_index = np.argmax(
-        predictions[0]
-    )
+    probabilities = predictions[0]
 
-    confidence = (
-        predictions[0][predicted_index] * 100
+    predicted_index = np.argmax(
+        probabilities
     )
 
     expression = CLASS_NAMES[
         predicted_index
     ]
 
-    return expression, confidence
+    confidence = (
+        probabilities[predicted_index]
+        * 100
+    )
+
+    return (
+        expression,
+        confidence,
+        probabilities
+    )
 
 
 def resize_to_fill_screen(frame):
 
-    window_x, window_y, screen_width, screen_height = (
-        cv2.getWindowImageRect(
-            WINDOW_NAME
-        )
+    (
+        window_x,
+        window_y,
+        screen_width,
+        screen_height
+    ) = cv2.getWindowImageRect(
+        WINDOW_NAME
     )
 
     if (
@@ -178,7 +189,10 @@ def resize_to_fill_screen(frame):
 
     resized_frame = cv2.resize(
         frame,
-        (new_width, new_height),
+        (
+            new_width,
+            new_height
+        ),
         interpolation=cv2.INTER_LINEAR
     )
 
@@ -191,8 +205,10 @@ def resize_to_fill_screen(frame):
     ) // 2
 
     cropped_frame = resized_frame[
-        crop_y:crop_y + screen_height,
-        crop_x:crop_x + screen_width
+        crop_y:
+        crop_y + screen_height,
+        crop_x:
+        crop_x + screen_width
     ]
 
     return cropped_frame
@@ -204,10 +220,15 @@ def get_stable_prediction(
 
     if len(prediction_history) == 0:
 
-        return None
+        return None, 0.0
+
+    predicted_indices = [
+        item[0]
+        for item in prediction_history
+    ]
 
     counts = np.bincount(
-        list(prediction_history),
+        predicted_indices,
         minlength=len(CLASS_NAMES)
     )
 
@@ -215,7 +236,28 @@ def get_stable_prediction(
         counts
     )
 
-    return stable_index
+    stable_probabilities = []
+
+    for item in prediction_history:
+
+        probabilities = item[1]
+
+        stable_probabilities.append(
+            probabilities[
+                stable_index
+            ]
+        )
+
+    stable_confidence = (
+        np.mean(
+            stable_probabilities
+        ) * 100
+    )
+
+    return (
+        stable_index,
+        stable_confidence
+    )
 
 
 def main():
@@ -232,7 +274,9 @@ def main():
 
         return
 
-    print("\nCONNECTING TO USB DROIDCAM")
+    print(
+        "\nCONNECTING TO USB DROIDCAM"
+    )
 
     camera = cv2.VideoCapture(
         CAMERA_INDEX,
@@ -265,7 +309,8 @@ def main():
 
     print(
         f"Camera resolution: "
-        f"{camera_width} x {camera_height}"
+        f"{camera_width} x "
+        f"{camera_height}"
     )
 
     print(
@@ -320,6 +365,10 @@ def main():
             minSize=(50, 50)
         )
 
+        if len(faces) == 0:
+
+            prediction_history.clear()
+
         for x, y, w, h in faces:
 
             face = frame[
@@ -327,11 +376,13 @@ def main():
                 x:x + w
             ]
 
-            expression, confidence = (
-                predict_expression(
-                    model,
-                    face
-                )
+            (
+                expression,
+                confidence,
+                probabilities
+            ) = predict_expression(
+                model,
+                face
             )
 
             predicted_index = (
@@ -341,13 +392,17 @@ def main():
             )
 
             prediction_history.append(
-                predicted_index
+                (
+                    predicted_index,
+                    probabilities
+                )
             )
 
-            stable_index = (
-                get_stable_prediction(
-                    prediction_history
-                )
+            (
+                stable_index,
+                stable_confidence
+            ) = get_stable_prediction(
+                prediction_history
             )
 
             stable_expression = (
@@ -358,7 +413,7 @@ def main():
 
             label = (
                 f"{stable_expression} "
-                f"{confidence:.1f}%"
+                f"{stable_confidence:.1f}%"
             )
 
             cv2.rectangle(
@@ -387,6 +442,28 @@ def main():
                 2
             )
 
+            stable_count = sum(
+                1
+                for item in prediction_history
+                if item[0] == stable_index
+            )
+
+            stability_text = (
+                f"Stable: "
+                f"{stable_count}/"
+                f"{SMOOTHING_FRAMES}"
+            )
+
+            cv2.putText(
+                frame,
+                stability_text,
+                (x, text_y + 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.55,
+                (255, 255, 255),
+                1
+            )
+
         display_frame = (
             resize_to_fill_screen(
                 frame
@@ -398,7 +475,9 @@ def main():
             display_frame
         )
 
-        key = cv2.waitKey(1) & 0xFF
+        key = (
+            cv2.waitKey(1) & 0xFF
+        )
 
         if key == ord("q"):
 
