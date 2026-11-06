@@ -1,5 +1,6 @@
 # Facial Expression Recognition Project
 
+
 # 1. Data Processing and Analysis
 numpy
 pandas
@@ -7,6 +8,7 @@ pandas
 
 # 2. Data Visualization
 matplotlib
+plotly
 
 
 # 3. Image Processing and Computer Vision
@@ -21,4 +23,6 @@ tensorflow
 # 5. Machine Learning Utilities
 scikit-learn
 
-pip freeze
+
+# 6. Web Application and Dashboard
+streamlit
