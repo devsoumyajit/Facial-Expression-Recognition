@@ -20,3 +20,5 @@ tensorflow
 
 # 5. Machine Learning Utilities
 scikit-learn
+
+pip freeze
