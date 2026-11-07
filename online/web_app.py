@@ -16,6 +16,7 @@ from flask import (
 )
 
 from datetime import datetime
+from collections import Counter
 
 
 # ==========================================================
@@ -79,7 +80,45 @@ CLASS_NAMES = [
 
 IMAGE_SIZE = (48, 48)
 
+# Database is updated once every 3 seconds
 DATABASE_LOG_INTERVAL = 3.0
+
+
+# Browser sends a prediction approximately every 0.7 seconds.
+#
+# IMPORTANT:
+# The browser also prevents overlapping requests.
+# This keeps Render from receiving multiple TensorFlow
+# requests at the same time.
+PREDICTION_INTERVAL_MS = 700
+
+
+# ==========================================================
+# TENSORFLOW CPU OPTIMIZATION
+# ==========================================================
+
+# Render usually runs without a GPU.
+#
+# Limiting TensorFlow threads helps prevent the free/low-resource
+# worker from becoming overloaded when multiple prediction
+# requests arrive.
+
+try:
+
+    tf.config.threading.set_intra_op_parallelism_threads(
+        1
+    )
+
+    tf.config.threading.set_inter_op_parallelism_threads(
+        1
+    )
+
+except Exception as e:
+
+    print(
+        "TensorFlow thread configuration warning:",
+        e
+    )
 
 
 # ==========================================================
@@ -218,6 +257,10 @@ def create_database():
     connection.close()
 
 
+# ==========================================================
+# START SESSION
+# ==========================================================
+
 def start_session():
 
     session_id = (
@@ -271,6 +314,10 @@ def start_session():
     return session_id
 
 
+# ==========================================================
+# INSERT PREDICTION
+# ==========================================================
+
 def insert_prediction(
     session_id,
     expression,
@@ -289,10 +336,6 @@ def insert_prediction(
 
     cursor = connection.cursor()
 
-
-    # IMPORTANT:
-    # There are 5 columns and therefore
-    # exactly 5 values are provided.
 
     cursor.execute("""
         INSERT INTO predictions (
@@ -316,6 +359,10 @@ def insert_prediction(
     connection.close()
 
 
+# ==========================================================
+# END SESSION
+# ==========================================================
+
 def end_session(session_id):
 
     if session_id not in active_sessions:
@@ -327,6 +374,7 @@ def end_session(session_id):
 
 
     end_time = time.time()
+
 
     start_time = (
         active_sessions[
@@ -391,9 +439,6 @@ def end_session(session_id):
             int(row[2])
             for row in predictions
         ]
-
-
-        from collections import Counter
 
 
         expression_counts = Counter(
@@ -484,13 +529,17 @@ def end_session(session_id):
 
 
     return {
+
         "success": True,
 
-        "session_id": session_id,
+        "session_id":
+            session_id,
 
-        "duration_seconds": duration,
+        "duration_seconds":
+            duration,
 
-        "total_predictions": total_predictions,
+        "total_predictions":
+            total_predictions,
 
         "most_detected_expression":
             most_detected_expression,
@@ -500,6 +549,7 @@ def end_session(session_id):
 
         "average_faces_detected":
             average_faces
+
     }
 
 
@@ -509,17 +559,29 @@ def end_session(session_id):
 
 def predict_expression(face):
 
+    # ------------------------------------------------------
+    # Convert face to grayscale
+    # ------------------------------------------------------
+
     gray_face = cv2.cvtColor(
         face,
         cv2.COLOR_BGR2GRAY
     )
 
 
+    # ------------------------------------------------------
+    # Resize to CNN input size
+    # ------------------------------------------------------
+
     resized_face = cv2.resize(
         gray_face,
         IMAGE_SIZE
     )
 
+
+    # ------------------------------------------------------
+    # Normalize
+    # ------------------------------------------------------
 
     normalized_face = (
         resized_face.astype(
@@ -529,6 +591,10 @@ def predict_expression(face):
     )
 
 
+    # ------------------------------------------------------
+    # Add batch and channel dimensions
+    # ------------------------------------------------------
+
     input_face = normalized_face.reshape(
         1,
         48,
@@ -536,6 +602,10 @@ def predict_expression(face):
         1
     )
 
+
+    # ------------------------------------------------------
+    # CNN prediction
+    # ------------------------------------------------------
 
     predictions = model.predict(
         input_face,
@@ -590,13 +660,37 @@ def home():
 )
 def start_session_api():
 
-    session_id = start_session()
+    try:
+
+        session_id = start_session()
 
 
-    return jsonify({
-        "success": True,
-        "session_id": session_id
-    })
+        return jsonify({
+
+            "success": True,
+
+            "session_id":
+                session_id
+
+        })
+
+
+    except Exception as e:
+
+        print(
+            "Start session error:",
+            e
+        )
+
+
+        return jsonify({
+
+            "success": False,
+
+            "message":
+                str(e)
+
+        }), 500
 
 
 # ==========================================================
@@ -609,31 +703,59 @@ def start_session_api():
 )
 def end_session_api():
 
-    data = request.get_json()
+    try:
+
+        data = (
+            request.get_json()
+            or {}
+        )
 
 
-    session_id = data.get(
-        "session_id"
-    )
+        session_id = data.get(
+            "session_id"
+        )
 
 
-    if not session_id:
+        if not session_id:
+
+            return jsonify({
+
+                "success":
+                    False,
+
+                "message":
+                    "Session ID is required."
+
+            })
+
+
+        result = end_session(
+            session_id
+        )
+
+
+        return jsonify(
+            result
+        )
+
+
+    except Exception as e:
+
+        print(
+            "End session error:",
+            e
+        )
+
 
         return jsonify({
-            "success": False,
+
+            "success":
+                False,
+
             "message":
-                "Session ID is required."
-        })
+                str(e)
 
-
-    result = end_session(
-        session_id
-    )
-
-
-    return jsonify(
-        result
-    )
+        }), 500
 
 
 # ==========================================================
@@ -648,7 +770,10 @@ def predict():
 
     try:
 
-        data = request.get_json()
+        data = (
+            request.get_json()
+            or {}
+        )
 
 
         image_data = data.get(
@@ -664,24 +789,42 @@ def predict():
         if not image_data:
 
             return jsonify({
-                "success": False,
+
+                "success":
+                    False,
+
                 "message":
                     "Image data missing."
+
             })
 
 
-        # --------------------------------------------------
+        # ==================================================
         # DECODE BASE64 IMAGE
-        # --------------------------------------------------
+        # ==================================================
 
-        image_bytes = (
-            base64.b64decode(
-                image_data.split(
-                    ",",
-                    1
-                )[1]
+        try:
+
+            image_bytes = (
+                base64.b64decode(
+                    image_data.split(
+                        ",",
+                        1
+                    )[1]
+                )
             )
-        )
+
+        except Exception:
+
+            return jsonify({
+
+                "success":
+                    False,
+
+                "message":
+                    "Invalid image data."
+
+            })
 
 
         image_array = np.frombuffer(
@@ -699,15 +842,19 @@ def predict():
         if image is None:
 
             return jsonify({
-                "success": False,
+
+                "success":
+                    False,
+
                 "message":
                     "Could not decode image."
+
             })
 
 
-        # --------------------------------------------------
+        # ==================================================
         # FACE DETECTION
-        # --------------------------------------------------
+        # ==================================================
 
         gray = cv2.cvtColor(
             image,
@@ -715,22 +862,20 @@ def predict():
         )
 
 
-        faces = (
-            face_detector.detectMultiScale(
-                gray,
-                scaleFactor=1.1,
-                minNeighbors=5,
-                minSize=(50, 50)
-            )
+        faces = face_detector.detectMultiScale(
+            gray,
+            scaleFactor=1.1,
+            minNeighbors=5,
+            minSize=(50, 50)
         )
 
 
         faces_data = []
 
 
-        # --------------------------------------------------
+        # ==================================================
         # PROCESS EVERY FACE
-        # --------------------------------------------------
+        # ==================================================
 
         for (
             x,
@@ -754,13 +899,17 @@ def predict():
 
             faces_data.append({
 
-                "x": int(x),
+                "x":
+                    int(x),
 
-                "y": int(y),
+                "y":
+                    int(y),
 
-                "width": int(w),
+                "width":
+                    int(w),
 
-                "height": int(h),
+                "height":
+                    int(h),
 
                 "expression":
                     expression,
@@ -780,8 +929,10 @@ def predict():
 
         if (
             session_id
-            and session_id in active_sessions
-            and len(faces_data) > 0
+            and
+            session_id in active_sessions
+            and
+            len(faces_data) > 0
         ):
 
             current_time = time.time()
@@ -795,28 +946,27 @@ def predict():
             )
 
 
-            # ----------------------------------------------
-            # Log approximately every 3 seconds
-            # ----------------------------------------------
-
             if (
                 current_time
-                - last_log_time
-                >= DATABASE_LOG_INTERVAL
+                -
+                last_log_time
+                >=
+                DATABASE_LOG_INTERVAL
             ):
 
-                faces_count = len(
-                    faces_data
+                faces_count = (
+                    len(faces_data)
                 )
 
 
                 # ------------------------------------------
-                # Store one database record for EACH face
+                # Store every detected face
                 # ------------------------------------------
 
                 for face_data in faces_data:
 
                     insert_prediction(
+
                         session_id,
 
                         face_data[
@@ -828,6 +978,7 @@ def predict():
                         ],
 
                         faces_count
+
                     )
 
 
@@ -836,17 +987,19 @@ def predict():
                 ] = current_time
 
 
-        # --------------------------------------------------
-        # RETURN RESULT TO BROWSER
-        # --------------------------------------------------
+        # ==================================================
+        # RETURN RESULT
+        # ==================================================
 
         return jsonify({
 
-            "success": True,
+            "success":
+                True,
 
-            "faces": len(
-                faces_data
-            ),
+            "faces":
+                len(
+                    faces_data
+                ),
 
             "faces_data":
                 faces_data
@@ -865,12 +1018,13 @@ def predict():
 
         return jsonify({
 
-            "success": False,
+            "success":
+                False,
 
             "message":
                 str(e)
 
-        })
+        }), 500
 
 
 # ==========================================================
@@ -1599,6 +1753,18 @@ let cameraRunning =
     false;
 
 
+// IMPORTANT:
+//
+// Prevent multiple /predict requests from running
+// at the same time.
+//
+// If Render is still processing the previous request,
+// the next timer tick will simply be skipped.
+
+let predictionInProgress =
+    false;
+
+
 // ========================================================
 // SMOOTHING SETTINGS
 // ========================================================
@@ -1629,7 +1795,8 @@ async function loadCameras() {
                 .enumerateDevices();
 
 
-        cameraSelect.innerHTML = "";
+        cameraSelect.innerHTML =
+            "";
 
 
         const defaultOption =
@@ -1638,7 +1805,9 @@ async function loadCameras() {
             );
 
 
-        defaultOption.value = "";
+        defaultOption.value =
+            "";
+
 
         defaultOption.textContent =
             "Select Camera";
@@ -1687,7 +1856,6 @@ async function loadCameras() {
 
             }
         );
-
 
     }
     catch (error) {
@@ -1780,6 +1948,14 @@ startSessionButton
                         activeSessionId;
 
                 }
+                else {
+
+                    statusElement.textContent =
+                        "Could not start session: "
+                        +
+                        result.message;
+
+                }
 
             }
             catch (error) {
@@ -1858,7 +2034,9 @@ endSessionButton
                         +
                         " | Average confidence: "
                         +
-                        result.average_confidence.toFixed(2)
+                        result.average_confidence.toFixed(
+                            2
+                        )
                         +
                         "%";
 
@@ -1877,6 +2055,14 @@ endSessionButton
 
                     endSessionButton.disabled =
                         true;
+
+                }
+                else {
+
+                    statusElement.textContent =
+                        "Could not end session: "
+                        +
+                        result.message;
 
                 }
 
@@ -1946,6 +2132,10 @@ startCameraButton
                     true;
 
 
+                predictionInProgress =
+                    false;
+
+
                 startCameraButton.disabled =
                     true;
 
@@ -1981,10 +2171,20 @@ startCameraButton
                     [];
 
 
+                // =================================================
+                // PREDICTION LOOP
+                // =================================================
+                //
+                // 700 ms gives a faster update than the previous
+                // 1000 ms setting.
+                //
+                // predictionInProgress prevents overlapping
+                // requests if Render is still processing.
+
                 predictionInterval =
                     setInterval(
                         sendFrameForPrediction,
-                        1000
+                        700
                     );
 
             }
@@ -2041,6 +2241,10 @@ function stopCamera() {
             null;
 
     }
+
+
+    predictionInProgress =
+        false;
 
 
     if (
@@ -2155,7 +2359,7 @@ function captureFrame() {
 
     return canvas.toDataURL(
         "image/jpeg",
-        0.8
+        0.7
     );
 
 }
@@ -2558,6 +2762,10 @@ function getSmoothedResult(
 
 async function sendFrameForPrediction() {
 
+    // ----------------------------------------------------
+    // CAMERA CHECK
+    // ----------------------------------------------------
+
     if (
         !cameraRunning
     ) {
@@ -2565,6 +2773,29 @@ async function sendFrameForPrediction() {
         return;
 
     }
+
+
+    // ----------------------------------------------------
+    // IMPORTANT:
+    //
+    // Do NOT start another request while the previous
+    // request is still being processed.
+    //
+    // This prevents Render from receiving multiple
+    // TensorFlow requests simultaneously.
+    // ----------------------------------------------------
+
+    if (
+        predictionInProgress
+    ) {
+
+        return;
+
+    }
+
+
+    predictionInProgress =
+        true;
 
 
     try {
@@ -2613,10 +2844,15 @@ async function sendFrameForPrediction() {
                 result.message
             );
 
+
             return;
 
         }
 
+
+        // =================================================
+        // UPDATE FACE COUNT
+        // =================================================
 
         faceCountElement.textContent =
             result.faces;
@@ -2722,9 +2958,9 @@ async function sendFrameForPrediction() {
                 }
 
 
-                // -----------------------------------------
+                // =========================================
                 // DRAW FACE RECTANGLE
-                // -----------------------------------------
+                // =========================================
 
                 overlayContext.strokeStyle =
                     "#00ff00";
@@ -2742,9 +2978,9 @@ async function sendFrameForPrediction() {
                 );
 
 
-                // -----------------------------------------
+                // =========================================
                 // DRAW LABEL
-                // -----------------------------------------
+                // =========================================
 
                 const label =
                     smoothed.expression
@@ -2815,9 +3051,9 @@ async function sendFrameForPrediction() {
                 );
 
 
-                // -----------------------------------------
+                // =========================================
                 // RESULT CARD
-                // -----------------------------------------
+                // =========================================
 
                 resultHTML += `
 
@@ -2864,6 +3100,18 @@ async function sendFrameForPrediction() {
             "Prediction error:",
             error
         );
+
+    }
+    finally {
+
+        // ------------------------------------------------
+        // IMPORTANT:
+        //
+        // Allow the next prediction request.
+        // ------------------------------------------------
+
+        predictionInProgress =
+            false;
 
     }
 
@@ -2920,35 +3168,6 @@ create_database()
 
 if __name__ == "__main__":
 
-    print()
-    print("=" * 60)
-    print("ONLINE FACIAL EXPRESSION RECOGNITION")
-    print("=" * 60)
-
-    print()
-    print(
-        "Open in browser:"
-    )
-
-    print(
-        "http://127.0.0.1:5000"
-    )
-
-    print()
-
-    print(
-        "Server running..."
-    )
-
-    print("=" * 60)
-
-
-#    app.run(
-#        host="0.0.0.0",
-#        port=5000,
-#        debug=False
-#    )
-
     port = int(
         os.environ.get(
             "PORT",
@@ -2956,42 +3175,45 @@ if __name__ == "__main__":
         )
     )
 
-    app.run(
-        host="0.0.0.0",
-        port=port,
-        debug=False
-    )    
-    
-if __name__ == "__main__":
-
-    port = int(
-        os.environ.get(
-            "PORT",
-            5000
-        )
-    )
 
     print()
     print("=" * 60)
     print("ONLINE FACIAL EXPRESSION RECOGNITION")
     print("=" * 60)
 
+
     print()
     print(
         "Open in browser:"
     )
+
 
     print(
         f"http://127.0.0.1:{port}"
     )
 
-    print()
 
+    print()
+    print(
+        "Prediction interval:"
+        f" {PREDICTION_INTERVAL_MS} ms"
+    )
+
+
+    print(
+        "Database log interval:"
+        f" {DATABASE_LOG_INTERVAL} seconds"
+    )
+
+
+    print()
     print(
         "Server running..."
     )
 
+
     print("=" * 60)
+
 
     app.run(
         host="0.0.0.0",
