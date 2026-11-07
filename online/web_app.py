@@ -16,7 +16,6 @@ from flask import (
 )
 
 from datetime import datetime
-from collections import Counter
 
 
 # ==========================================================
@@ -80,28 +79,51 @@ CLASS_NAMES = [
 
 IMAGE_SIZE = (48, 48)
 
-# Database is updated once every 3 seconds
+
+# ----------------------------------------------------------
+# DATABASE LOGGING
+# ----------------------------------------------------------
+
 DATABASE_LOG_INTERVAL = 3.0
 
 
-# Browser sends a prediction approximately every 0.7 seconds.
-#
-# IMPORTANT:
-# The browser also prevents overlapping requests.
-# This keeps Render from receiving multiple TensorFlow
-# requests at the same time.
+# ----------------------------------------------------------
+# CAMERA / PREDICTION SETTINGS
+# ----------------------------------------------------------
+
+# Browser sends a frame every 700 ms.
+# This is faster than the previous 1000 ms,
+# but still much safer for Render than 500 ms.
+
 PREDICTION_INTERVAL_MS = 700
 
 
+# JPEG quality sent from browser to server.
+
+JPEG_QUALITY = 0.65
+
+
+# ----------------------------------------------------------
+# IMAGE PROCESSING LIMIT
+# ----------------------------------------------------------
+
+# Maximum width of the image sent to OpenCV.
+#
+# This reduces CPU usage on Render.
+#
+# The browser camera can still display normally.
+
+MAX_PROCESSING_WIDTH = 640
+
+
 # ==========================================================
-# TENSORFLOW CPU OPTIMIZATION
+# TENSORFLOW CPU SETTINGS
 # ==========================================================
 
-# Render usually runs without a GPU.
+# Render free instances normally do not have a GPU.
 #
-# Limiting TensorFlow threads helps prevent the free/low-resource
-# worker from becoming overloaded when multiple prediction
-# requests arrive.
+# Limiting TensorFlow threads helps prevent excessive
+# CPU usage and worker instability.
 
 try:
 
@@ -113,12 +135,9 @@ try:
         1
     )
 
-except Exception as e:
+except Exception:
 
-    print(
-        "TensorFlow thread configuration warning:",
-        e
-    )
+    pass
 
 
 # ==========================================================
@@ -129,7 +148,10 @@ print("=" * 60)
 print("LOADING CNN MODEL")
 print("=" * 60)
 
-if not os.path.exists(MODEL_PATH):
+
+if not os.path.exists(
+    MODEL_PATH
+):
 
     raise FileNotFoundError(
         f"Model not found:\n{MODEL_PATH}"
@@ -140,7 +162,10 @@ model = tf.keras.models.load_model(
     MODEL_PATH
 )
 
-print("CNN model loaded successfully.")
+
+print(
+    "CNN model loaded successfully."
+)
 
 
 # ==========================================================
@@ -152,7 +177,10 @@ print("=" * 60)
 print("LOADING FACE DETECTOR")
 print("=" * 60)
 
-if not os.path.exists(CASCADE_PATH):
+
+if not os.path.exists(
+    CASCADE_PATH
+):
 
     raise FileNotFoundError(
         f"Haar Cascade not found:\n{CASCADE_PATH}"
@@ -171,7 +199,9 @@ if face_detector.empty():
     )
 
 
-print("Haar Cascade loaded successfully.")
+print(
+    "Haar Cascade loaded successfully."
+)
 
 
 # ==========================================================
@@ -273,8 +303,10 @@ def start_session():
     )
 
 
-    start_time = datetime.now().strftime(
-        "%Y-%m-%d %H:%M:%S"
+    start_time = (
+        datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
     )
 
 
@@ -301,8 +333,11 @@ def start_session():
     connection.close()
 
 
-    active_sessions[session_id] = {
-        "start_time": time.time()
+    active_sessions[
+        session_id
+    ] = {
+        "start_time":
+            time.time()
     }
 
 
@@ -325,8 +360,10 @@ def insert_prediction(
     faces_detected
 ):
 
-    timestamp = datetime.now().strftime(
-        "%Y-%m-%d %H:%M:%S"
+    timestamp = (
+        datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
     )
 
 
@@ -347,11 +384,21 @@ def insert_prediction(
         )
         VALUES (?, ?, ?, ?, ?)
     """, (
+
         session_id,
+
         timestamp,
+
         expression,
-        float(confidence),
-        int(faces_detected)
+
+        float(
+            confidence
+        ),
+
+        int(
+            faces_detected
+        )
+
     ))
 
 
@@ -363,13 +410,21 @@ def insert_prediction(
 # END SESSION
 # ==========================================================
 
-def end_session(session_id):
+def end_session(
+    session_id
+):
 
-    if session_id not in active_sessions:
+    if (
+        session_id
+        not in active_sessions
+    ):
 
         return {
-            "success": False,
-            "message": "Session not found."
+            "success":
+                False,
+
+            "message":
+                "Session not found."
         }
 
 
@@ -384,7 +439,9 @@ def end_session(session_id):
 
 
     duration = (
-        end_time - start_time
+        end_time
+        -
+        start_time
     )
 
 
@@ -404,36 +461,47 @@ def end_session(session_id):
             expression,
             confidence,
             faces_detected
+
         FROM predictions
+
         WHERE session_id = ?
     """, (
         session_id,
     ))
 
 
-    predictions = cursor.fetchall()
+    predictions = (
+        cursor.fetchall()
+    )
 
 
-    total_predictions = len(
-        predictions
+    total_predictions = (
+        len(
+            predictions
+        )
     )
 
 
     # ------------------------------------------------------
-    # CALCULATE SESSION ANALYTICS
+    # CALCULATE ANALYTICS
     # ------------------------------------------------------
 
-    if total_predictions > 0:
+    if (
+        total_predictions
+        > 0
+    ):
 
         expressions = [
             row[0]
             for row in predictions
         ]
 
+
         confidences = [
             float(row[1])
             for row in predictions
         ]
+
 
         faces = [
             int(row[2])
@@ -441,8 +509,13 @@ def end_session(session_id):
         ]
 
 
-        expression_counts = Counter(
-            expressions
+        from collections import Counter
+
+
+        expression_counts = (
+            Counter(
+                expressions
+            )
         )
 
 
@@ -453,14 +526,20 @@ def end_session(session_id):
 
 
         average_confidence = (
-            sum(confidences)
-            / total_predictions
+            sum(
+                confidences
+            )
+            /
+            total_predictions
         )
 
 
         average_faces = (
-            sum(faces)
-            / total_predictions
+            sum(
+                faces
+            )
+            /
+            total_predictions
         )
 
     else:
@@ -498,13 +577,21 @@ def end_session(session_id):
 
         WHERE session_id = ?
     """, (
+
         end_time_string,
+
         duration,
+
         total_predictions,
+
         most_detected_expression,
+
         average_confidence,
+
         average_faces,
+
         session_id
+
     ))
 
 
@@ -513,7 +600,7 @@ def end_session(session_id):
 
 
     # ------------------------------------------------------
-    # REMOVE ACTIVE SESSION
+    # REMOVE SESSION FROM MEMORY
     # ------------------------------------------------------
 
     del active_sessions[
@@ -521,7 +608,10 @@ def end_session(session_id):
     ]
 
 
-    if session_id in last_database_log_time:
+    if (
+        session_id
+        in last_database_log_time
+    ):
 
         del last_database_log_time[
             session_id
@@ -530,7 +620,8 @@ def end_session(session_id):
 
     return {
 
-        "success": True,
+        "success":
+            True,
 
         "session_id":
             session_id,
@@ -557,11 +648,9 @@ def end_session(session_id):
 # FACE PREDICTION
 # ==========================================================
 
-def predict_expression(face):
-
-    # ------------------------------------------------------
-    # Convert face to grayscale
-    # ------------------------------------------------------
+def predict_expression(
+    face
+):
 
     gray_face = cv2.cvtColor(
         face,
@@ -569,59 +658,52 @@ def predict_expression(face):
     )
 
 
-    # ------------------------------------------------------
-    # Resize to CNN input size
-    # ------------------------------------------------------
-
     resized_face = cv2.resize(
         gray_face,
         IMAGE_SIZE
     )
 
 
-    # ------------------------------------------------------
-    # Normalize
-    # ------------------------------------------------------
-
     normalized_face = (
         resized_face.astype(
             np.float32
         )
-        / 255.0
+        /
+        255.0
     )
 
 
-    # ------------------------------------------------------
-    # Add batch and channel dimensions
-    # ------------------------------------------------------
-
-    input_face = normalized_face.reshape(
-        1,
-        48,
-        48,
-        1
+    input_face = (
+        normalized_face.reshape(
+            1,
+            48,
+            48,
+            1
+        )
     )
 
 
-    # ------------------------------------------------------
-    # CNN prediction
-    # ------------------------------------------------------
-
-    predictions = model.predict(
-        input_face,
-        verbose=0
+    predictions = (
+        model.predict(
+            input_face,
+            verbose=0
+        )
     )
 
 
-    predicted_index = np.argmax(
-        predictions[0]
+    predicted_index = (
+        np.argmax(
+            predictions[0]
+        )
     )
 
 
     confidence = (
         predictions[0][
             predicted_index
-        ] * 100
+        ]
+        *
+        100
     )
 
 
@@ -634,7 +716,9 @@ def predict_expression(face):
 
     return (
         expression,
-        float(confidence)
+        float(
+            confidence
+        )
     )
 
 
@@ -662,12 +746,15 @@ def start_session_api():
 
     try:
 
-        session_id = start_session()
+        session_id = (
+            start_session()
+        )
 
 
         return jsonify({
 
-            "success": True,
+            "success":
+                True,
 
             "session_id":
                 session_id
@@ -679,13 +766,14 @@ def start_session_api():
 
         print(
             "Start session error:",
-            e
+            str(e)
         )
 
 
         return jsonify({
 
-            "success": False,
+            "success":
+                False,
 
             "message":
                 str(e)
@@ -711,8 +799,10 @@ def end_session_api():
         )
 
 
-        session_id = data.get(
-            "session_id"
+        session_id = (
+            data.get(
+                "session_id"
+            )
         )
 
 
@@ -729,8 +819,10 @@ def end_session_api():
             })
 
 
-        result = end_session(
-            session_id
+        result = (
+            end_session(
+                session_id
+            )
         )
 
 
@@ -743,7 +835,7 @@ def end_session_api():
 
         print(
             "End session error:",
-            e
+            str(e)
         )
 
 
@@ -776,13 +868,17 @@ def predict():
         )
 
 
-        image_data = data.get(
-            "image"
+        image_data = (
+            data.get(
+                "image"
+            )
         )
 
 
-        session_id = data.get(
-            "session_id"
+        session_id = (
+            data.get(
+                "session_id"
+            )
         )
 
 
@@ -799,43 +895,46 @@ def predict():
             })
 
 
-        # ==================================================
+        # --------------------------------------------------
         # DECODE BASE64 IMAGE
-        # ==================================================
+        # --------------------------------------------------
 
         try:
 
-            image_bytes = (
-                base64.b64decode(
-                    image_data.split(
-                        ",",
-                        1
-                    )[1]
-                )
+            encoded_image = (
+                image_data.split(
+                    ",",
+                    1
+                )[1]
             )
 
-        except Exception:
+        except IndexError:
 
-            return jsonify({
-
-                "success":
-                    False,
-
-                "message":
-                    "Invalid image data."
-
-            })
+            encoded_image = (
+                image_data
+            )
 
 
-        image_array = np.frombuffer(
-            image_bytes,
-            dtype=np.uint8
+        image_bytes = (
+            base64.b64decode(
+                encoded_image
+            )
         )
 
 
-        image = cv2.imdecode(
-            image_array,
-            cv2.IMREAD_COLOR
+        image_array = (
+            np.frombuffer(
+                image_bytes,
+                dtype=np.uint8
+            )
+        )
+
+
+        image = (
+            cv2.imdecode(
+                image_array,
+                cv2.IMREAD_COLOR
+            )
         )
 
 
@@ -853,6 +952,51 @@ def predict():
 
 
         # ==================================================
+        # RESIZE FOR RENDER PROCESSING
+        # ==================================================
+
+        original_height, original_width = (
+            image.shape[:2]
+        )
+
+
+        if (
+            original_width
+            >
+            MAX_PROCESSING_WIDTH
+        ):
+
+            scale = (
+                MAX_PROCESSING_WIDTH
+                /
+                original_width
+            )
+
+
+            new_width = (
+                MAX_PROCESSING_WIDTH
+            )
+
+
+            new_height = int(
+                original_height
+                *
+                scale
+            )
+
+
+            image = cv2.resize(
+                image,
+                (
+                    new_width,
+                    new_height
+                ),
+                interpolation=
+                    cv2.INTER_AREA
+            )
+
+
+        # ==================================================
         # FACE DETECTION
         # ==================================================
 
@@ -862,11 +1006,13 @@ def predict():
         )
 
 
-        faces = face_detector.detectMultiScale(
-            gray,
-            scaleFactor=1.1,
-            minNeighbors=5,
-            minSize=(50, 50)
+        faces = (
+            face_detector.detectMultiScale(
+                gray,
+                scaleFactor=1.1,
+                minNeighbors=5,
+                minSize=(40, 40)
+            )
         )
 
 
@@ -930,12 +1076,18 @@ def predict():
         if (
             session_id
             and
-            session_id in active_sessions
+            session_id
+            in active_sessions
             and
-            len(faces_data) > 0
+            len(
+                faces_data
+            )
+            > 0
         ):
 
-            current_time = time.time()
+            current_time = (
+                time.time()
+            )
 
 
             last_log_time = (
@@ -955,15 +1107,19 @@ def predict():
             ):
 
                 faces_count = (
-                    len(faces_data)
+                    len(
+                        faces_data
+                    )
                 )
 
 
                 # ------------------------------------------
-                # Store every detected face
+                # Store one record per face
                 # ------------------------------------------
 
-                for face_data in faces_data:
+                for face_data in (
+                    faces_data
+                ):
 
                     insert_prediction(
 
@@ -1013,7 +1169,9 @@ def predict():
         print("=" * 60)
         print("PREDICTION ERROR")
         print("=" * 60)
-        print(str(e))
+        print(
+            str(e)
+        )
 
 
         return jsonify({
@@ -1038,411 +1196,412 @@ HTML_PAGE = r"""
 
 <head>
 
-    <meta charset="UTF-8">
+<meta charset="UTF-8">
 
-    <meta name="viewport"
-          content="width=device-width,
-                   initial-scale=1.0">
+<meta name="viewport"
+      content="width=device-width,
+               initial-scale=1.0">
 
-    <title>
-        Facial Expression Recognition
-    </title>
+<title>
+Facial Expression Recognition
+</title>
 
 
-    <style>
+<style>
 
-        * {
-            box-sizing: border-box;
-        }
+* {
+    box-sizing: border-box;
+}
 
 
-        body {
+body {
 
-            margin: 0;
+    margin: 0;
 
-            font-family:
-                Arial,
-                Helvetica,
-                sans-serif;
+    font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
 
-            background:
-                #f4f6f8;
+    background:
+        #f4f6f8;
 
-            color:
-                #222;
+    color:
+        #222;
 
-        }
+}
 
 
-        .container {
+.container {
 
-            max-width:
-                1200px;
+    max-width:
+        1200px;
 
-            margin:
-                0 auto;
+    margin:
+        0 auto;
 
-            padding:
-                30px;
+    padding:
+        30px;
 
-        }
+}
 
 
-        h1 {
+h1 {
 
-            margin-bottom:
-                5px;
+    margin-bottom:
+        5px;
 
-        }
+}
 
 
-        .subtitle {
+.subtitle {
 
-            color:
-                #666;
+    color:
+        #666;
 
-            margin-bottom:
-                25px;
+    margin-bottom:
+        25px;
 
-        }
+}
 
 
-        .camera-controls {
+.camera-controls {
 
-            display:
-                flex;
+    display:
+        flex;
 
-            flex-wrap:
-                wrap;
+    flex-wrap:
+        wrap;
 
-            gap:
-                10px;
+    gap:
+        10px;
 
-            align-items:
-                center;
+    align-items:
+        center;
 
-            margin-bottom:
-                20px;
+    margin-bottom:
+        20px;
 
-        }
+}
 
 
-        select {
+select {
 
-            padding:
-                10px;
+    padding:
+        10px;
 
-            border:
-                1px solid #ccc;
+    border:
+        1px solid #ccc;
 
-            border-radius:
-                6px;
+    border-radius:
+        6px;
 
-            min-width:
-                250px;
+    min-width:
+        250px;
 
-        }
+}
 
 
-        button {
+button {
 
-            border:
-                none;
+    border:
+        none;
 
-            padding:
-                11px 18px;
+    padding:
+        11px 18px;
 
-            border-radius:
-                6px;
+    border-radius:
+        6px;
 
-            cursor:
-                pointer;
+    cursor:
+        pointer;
 
-            font-size:
-                14px;
+    font-size:
+        14px;
 
-        }
+}
 
 
-        #refreshCamera {
+#refreshCamera {
 
-            background:
-                #6c757d;
+    background:
+        #6c757d;
 
-            color:
-                white;
+    color:
+        white;
 
-        }
+}
 
 
-        #startCamera {
+#startCamera {
 
-            background:
-                #198754;
+    background:
+        #198754;
 
-            color:
-                white;
+    color:
+        white;
 
-        }
+}
 
 
-        #stopCamera {
+#stopCamera {
 
-            background:
-                #dc3545;
+    background:
+        #dc3545;
 
-            color:
-                white;
+    color:
+        white;
 
-        }
+}
 
 
-        #startSession {
+#startSession {
 
-            background:
-                #0d6efd;
+    background:
+        #0d6efd;
 
-            color:
-                white;
+    color:
+        white;
 
-        }
+}
 
 
-        #endSession {
+#endSession {
 
-            background:
-                #fd7e14;
+    background:
+        #fd7e14;
 
-            color:
-                white;
+    color:
+        white;
 
-        }
+}
 
 
-        button:disabled {
+button:disabled {
 
-            opacity:
-                0.5;
+    opacity:
+        0.5;
 
-            cursor:
-                not-allowed;
+    cursor:
+        not-allowed;
 
-        }
+}
 
 
-        .status {
+.status {
 
-            padding:
-                12px;
+    padding:
+        12px;
 
-            background:
-                white;
+    background:
+        white;
 
-            border-radius:
-                8px;
+    border-radius:
+        8px;
 
-            margin-bottom:
-                20px;
+    margin-bottom:
+        20px;
 
-            border:
-                1px solid #ddd;
+    border:
+        1px solid #ddd;
 
-        }
+}
 
 
-        .session-info {
+.session-info {
 
-            display:
-                grid;
+    display:
+        grid;
 
-            grid-template-columns:
-                repeat(
-                    3,
-                    1fr
-                );
+    grid-template-columns:
+        repeat(
+            3,
+            1fr
+        );
 
-            gap:
-                15px;
+    gap:
+        15px;
 
-            margin-bottom:
-                20px;
+    margin-bottom:
+        20px;
 
-        }
+}
 
 
-        .card {
+.card {
 
-            background:
-                white;
+    background:
+        white;
 
-            padding:
-                18px;
+    padding:
+        18px;
 
-            border-radius:
-                8px;
+    border-radius:
+        8px;
 
-            border:
-                1px solid #ddd;
+    border:
+        1px solid #ddd;
 
-        }
+}
 
 
-        .card-title {
+.card-title {
 
-            font-size:
-                13px;
+    font-size:
+        13px;
 
-            color:
-                #777;
+    color:
+        #777;
 
-            margin-bottom:
-                7px;
+    margin-bottom:
+        7px;
 
-        }
+}
 
 
-        .card-value {
+.card-value {
 
-            font-size:
-                20px;
+    font-size:
+        20px;
 
-            font-weight:
-                bold;
+    font-weight:
+        bold;
 
-        }
+}
 
 
-        .viewer {
+.viewer {
 
-            width:
-                100%;
+    width:
+        100%;
 
-            background:
-                black;
+    background:
+        black;
 
-            border-radius:
-                10px;
+    border-radius:
+        10px;
 
-            overflow:
-                hidden;
+    overflow:
+        hidden;
 
-            position:
-                relative;
+    position:
+        relative;
 
-        }
+}
 
 
-        #video {
+#video {
 
-            display:
-                block;
+    display:
+        block;
 
-            width:
-                100%;
+    width:
+        100%;
 
-            height:
-                auto;
+    height:
+        auto;
 
-        }
+}
 
 
-        #overlay {
+#overlay {
 
-            position:
-                absolute;
+    position:
+        absolute;
 
-            top:
-                0;
+    top:
+        0;
 
-            left:
-                0;
+    left:
+        0;
 
-            width:
-                100%;
+    width:
+        100%;
 
-            height:
-                100%;
+    height:
+        100%;
 
-            pointer-events:
-                none;
+    pointer-events:
+        none;
 
-        }
+}
 
 
-        .prediction-info {
+.prediction-info {
 
-            margin-top:
-                20px;
+    margin-top:
+        20px;
 
-            background:
-                white;
+    background:
+        white;
 
-            padding:
-                20px;
+    padding:
+        20px;
 
-            border-radius:
-                8px;
+    border-radius:
+        8px;
 
-            border:
-                1px solid #ddd;
+    border:
+        1px solid #ddd;
 
-        }
+}
 
 
-        .face-result {
+.face-result {
 
-            padding:
-                12px;
+    padding:
+        12px;
 
-            margin-bottom:
-                10px;
+    margin-bottom:
+        10px;
 
-            border:
-                1px solid #ddd;
+    border:
+        1px solid #ddd;
 
-            border-radius:
-                6px;
+    border-radius:
+        6px;
 
-        }
+}
 
 
-        .face-result:last-child {
+.face-result:last-child {
 
-            margin-bottom:
-                0;
+    margin-bottom:
+        0;
 
-        }
+}
 
 
-        .no-face {
+.no-face {
 
-            color:
-                #777;
+    color:
+        #777;
 
-        }
+}
 
 
-        @media (
-            max-width: 700px
-        ) {
+@media (
+    max-width: 700px
+) {
 
-            .session-info {
+    .session-info {
 
-                grid-template-columns:
-                    1fr;
+        grid-template-columns:
+            1fr;
 
-            }
+    }
 
-            .container {
 
-                padding:
-                    15px;
+    .container {
 
-            }
+        padding:
+            15px;
 
-        }
+    }
 
-    </style>
+}
+
+</style>
 
 </head>
 
@@ -1453,190 +1612,170 @@ HTML_PAGE = r"""
 <div class="container">
 
 
-    <h1>
-        Real-Time Facial Expression Recognition
-    </h1>
+<h1>
+Real-Time Facial Expression Recognition
+</h1>
 
 
-    <div class="subtitle">
-        Browser Camera → Flask → CNN → Expression
-    </div>
+<div class="subtitle">
+Browser Camera → Flask → CNN → Expression
+</div>
 
 
-    <!-- ==================================================
-         CAMERA CONTROLS
-         ================================================== -->
+<!-- ==================================================
+     CAMERA CONTROLS
+     ================================================== -->
 
-    <div class="camera-controls">
+<div class="camera-controls">
 
-        <select
-            id="cameraSelect">
 
-            <option value="">
-                Select Camera
-            </option>
+<select id="cameraSelect">
 
-        </select>
+<option value="">
+Select Camera
+</option>
 
+</select>
 
-        <button
-            id="refreshCamera">
 
-            Refresh Cameras
+<button id="refreshCamera">
+Refresh Cameras
+</button>
 
-        </button>
 
+<button id="startCamera">
+Start Camera
+</button>
 
-        <button
-            id="startCamera">
 
-            Start Camera
+<button id="stopCamera"
+        disabled>
+Stop Camera
+</button>
 
-        </button>
 
+<button id="startSession">
+Start Session
+</button>
 
-        <button
-            id="stopCamera"
-            disabled>
 
-            Stop Camera
+<button id="endSession"
+        disabled>
+End Session
+</button>
 
-        </button>
 
+</div>
 
-        <button
-            id="startSession">
 
-            Start Session
+<!-- ==================================================
+     STATUS
+     ================================================== -->
 
-        </button>
+<div class="status"
+     id="status">
 
+Camera stopped.
 
-        <button
-            id="endSession"
-            disabled>
+</div>
 
-            End Session
 
-        </button>
+<!-- ==================================================
+     SESSION INFORMATION
+     ================================================== -->
 
-    </div>
+<div class="session-info">
 
 
-    <!-- ==================================================
-         STATUS
-         ================================================== -->
+<div class="card">
 
-    <div
-        class="status"
-        id="status">
+<div class="card-title">
+Session
+</div>
 
-        Camera stopped.
+<div class="card-value"
+     id="sessionStatus">
 
-    </div>
+Not Started
 
+</div>
 
-    <!-- ==================================================
-         SESSION INFORMATION
-         ================================================== -->
+</div>
 
-    <div class="session-info">
 
+<div class="card">
 
-        <div class="card">
+<div class="card-title">
+Faces Detected
+</div>
 
-            <div class="card-title">
-                Session
-            </div>
+<div class="card-value"
+     id="faceCount">
 
-            <div
-                class="card-value"
-                id="sessionStatus">
+0
 
-                Not Started
+</div>
 
-            </div>
+</div>
 
-        </div>
 
+<div class="card">
 
-        <div class="card">
+<div class="card-title">
+Current Expression
+</div>
 
-            <div class="card-title">
-                Faces Detected
-            </div>
+<div class="card-value"
+     id="expression">
 
-            <div
-                class="card-value"
-                id="faceCount">
+-
 
-                0
+</div>
 
-            </div>
+</div>
 
-        </div>
 
+</div>
 
-        <div class="card">
 
-            <div class="card-title">
-                Current Expression
-            </div>
+<!-- ==================================================
+     VIDEO VIEWER
+     ================================================== -->
 
-            <div
-                class="card-value"
-                id="expression">
+<div class="viewer">
 
-                -
+<video id="video"
+       autoplay
+       playsinline>
+</video>
 
-            </div>
 
-        </div>
+<canvas id="overlay">
+</canvas>
 
+</div>
 
-    </div>
 
+<!-- ==================================================
+     RESULTS
+     ================================================== -->
 
-    <!-- ==================================================
-         VIDEO VIEWER
-         ================================================== -->
+<div class="prediction-info">
 
-    <div class="viewer">
+<h3>
+Detection Results
+</h3>
 
-        <video
-            id="video"
-            autoplay
-            playsinline>
-        </video>
 
+<div id="results">
 
-        <canvas
-            id="overlay">
-        </canvas>
+<div class="no-face">
+No face detected.
+</div>
 
-    </div>
+</div>
 
-
-    <!-- ==================================================
-         PREDICTION INFORMATION
-         ================================================== -->
-
-    <div class="prediction-info">
-
-        <h3>
-            Detection Results
-        </h3>
-
-
-        <div id="results">
-
-            <div class="no-face">
-                No face detected.
-            </div>
-
-        </div>
-
-    </div>
+</div>
 
 
 </div>
@@ -1753,20 +1892,19 @@ let cameraRunning =
     false;
 
 
-// IMPORTANT:
-//
-// Prevent multiple /predict requests from running
+// --------------------------------------------------------
+// IMPORTANT
+// --------------------------------------------------------
+// Prevents multiple /predict requests from running
 // at the same time.
-//
-// If Render is still processing the previous request,
-// the next timer tick will simply be skipped.
+// --------------------------------------------------------
 
 let predictionInProgress =
     false;
 
 
 // ========================================================
-// SMOOTHING SETTINGS
+// SMOOTHING
 // ========================================================
 
 const SMOOTHING_FRAMES =
@@ -1841,7 +1979,8 @@ async function loadCameras() {
 
 
                     option.textContent =
-                        device.label ||
+                        device.label
+                        ||
                         `Camera ${cameraNumber}`;
 
 
@@ -1908,6 +2047,10 @@ startSessionButton
 
             try {
 
+                statusElement.textContent =
+                    "Starting session...";
+
+
                 const response =
                     await fetch(
                         "/start_session",
@@ -1943,17 +2086,13 @@ startSessionButton
 
 
                     statusElement.textContent =
-                        "Session started: "
-                        +
-                        activeSessionId;
+                        "Session started.";
 
                 }
                 else {
 
                     statusElement.textContent =
-                        "Could not start session: "
-                        +
-                        result.message;
+                        "Could not start session.";
 
                 }
 
@@ -1994,6 +2133,10 @@ endSessionButton
 
             try {
 
+                statusElement.textContent =
+                    "Ending session...";
+
+
                 const response =
                     await fetch(
                         "/end_session",
@@ -2003,14 +2146,18 @@ endSessionButton
                                 "POST",
 
                             headers: {
+
                                 "Content-Type":
                                     "application/json"
+
                             },
 
                             body:
                                 JSON.stringify({
+
                                     session_id:
                                         activeSessionId
+
                                 })
 
                         }
@@ -2060,9 +2207,7 @@ endSessionButton
                 else {
 
                     statusElement.textContent =
-                        "Could not end session: "
-                        +
-                        result.message;
+                        "Could not end session.";
 
                 }
 
@@ -2102,18 +2247,29 @@ startCameraButton
 
                     video:
                         selectedDevice
-                        ? {
-                            deviceId: {
+                        ?
+                        {
+
+                            deviceId:
+                            {
+
                                 exact:
                                     selectedDevice
+
                             }
+
                         }
-                        : true,
+                        :
+                        true,
 
                     audio:
                         false
 
                 };
+
+
+                statusElement.textContent =
+                    "Starting camera...";
 
 
                 stream =
@@ -2152,11 +2308,34 @@ startCameraButton
                     true;
 
 
-                statusElement.textContent =
-                    "Camera running.";
-
-
                 await video.play();
+
+
+                await new Promise(
+                    function(resolve) {
+
+                        if (
+                            video.readyState
+                            >=
+                            2
+                        ) {
+
+                            resolve();
+
+                        }
+                        else {
+
+                            video.onloadedmetadata =
+                                function() {
+
+                                    resolve();
+
+                                };
+
+                        }
+
+                    }
+                );
 
 
                 overlay.width =
@@ -2171,15 +2350,19 @@ startCameraButton
                     [];
 
 
-                // =================================================
+                statusElement.textContent =
+                    "Camera running. Detecting faces...";
+
+
+                // ------------------------------------------------
                 // PREDICTION LOOP
-                // =================================================
+                // ------------------------------------------------
                 //
-                // 700 ms gives a faster update than the previous
-                // 1000 ms setting.
+                // 700 ms gives approximately 1.4 requests/sec.
                 //
-                // predictionInProgress prevents overlapping
-                // requests if Render is still processing.
+                // The important part is that we also prevent
+                // overlapping requests.
+                // ------------------------------------------------
 
                 predictionInterval =
                     setInterval(
@@ -2334,12 +2517,56 @@ function captureFrame() {
         );
 
 
-    canvas.width =
+    // ------------------------------------------------------
+    // Send a smaller frame to Render.
+    //
+    // This reduces upload size and server processing.
+    // ------------------------------------------------------
+
+    let width =
         video.videoWidth;
 
 
-    canvas.height =
+    let height =
         video.videoHeight;
+
+
+    const maxWidth =
+        640;
+
+
+    if (
+        width
+        >
+        maxWidth
+    ) {
+
+        const scale =
+            maxWidth
+            /
+            width;
+
+
+        width =
+            maxWidth;
+
+
+        height =
+            Math.round(
+                height
+                *
+                scale
+            );
+
+    }
+
+
+    canvas.width =
+        width;
+
+
+    canvas.height =
+        height;
 
 
     const context =
@@ -2352,21 +2579,21 @@ function captureFrame() {
         video,
         0,
         0,
-        canvas.width,
-        canvas.height
+        width,
+        height
     );
 
 
     return canvas.toDataURL(
         "image/jpeg",
-        0.7
+        0.65
     );
 
 }
 
 
 // ========================================================
-// DISTANCE BETWEEN TWO FACE CENTERS
+// FACE DISTANCE
 // ========================================================
 
 function faceDistance(
@@ -2377,39 +2604,53 @@ function faceDistance(
     const centerX1 =
         face1.x
         +
-        face1.width / 2;
+        face1.width
+        /
+        2;
 
 
     const centerY1 =
         face1.y
         +
-        face1.height / 2;
+        face1.height
+        /
+        2;
 
 
     const centerX2 =
         face2.x
         +
-        face2.width / 2;
+        face2.width
+        /
+        2;
 
 
     const centerY2 =
         face2.y
         +
-        face2.height / 2;
+        face2.height
+        /
+        2;
 
 
     return Math.sqrt(
+
         Math.pow(
-            centerX1 -
+            centerX1
+            -
             centerX2,
             2
         )
+
         +
+
         Math.pow(
-            centerY1 -
+            centerY1
+            -
             centerY2,
             2
         )
+
     );
 
 }
@@ -2464,10 +2705,12 @@ function updateFaceTracks(
 
 
                     if (
-                        distance <
+                        distance
+                        <
                         bestDistance
                         &&
-                        distance <
+                        distance
+                        <
                         MAX_FACE_DISTANCE
                     ) {
 
@@ -2654,7 +2897,8 @@ function getSmoothedResult(
 
                 counts[
                     item.expression
-                ] = 0;
+                ] =
+                    0;
 
             }
 
@@ -2695,6 +2939,7 @@ function getSmoothedResult(
                         expression
                     ];
 
+
                 bestExpression =
                     expression;
 
@@ -2730,10 +2975,15 @@ function getSmoothedResult(
 
     const averageConfidence =
         matchingConfidences.reduce(
-            function(sum, value) {
+            function(
+                sum,
+                value
+            ) {
 
                 return (
-                    sum + value
+                    sum
+                    +
+                    value
                 );
 
             },
@@ -2762,10 +3012,6 @@ function getSmoothedResult(
 
 async function sendFrameForPrediction() {
 
-    // ----------------------------------------------------
-    // CAMERA CHECK
-    // ----------------------------------------------------
-
     if (
         !cameraRunning
     ) {
@@ -2775,15 +3021,14 @@ async function sendFrameForPrediction() {
     }
 
 
-    // ----------------------------------------------------
-    // IMPORTANT:
+    // ------------------------------------------------------
+    // CRITICAL PERFORMANCE FIX
     //
-    // Do NOT start another request while the previous
-    // request is still being processed.
+    // If the previous request is still running,
+    // DO NOT send another request.
     //
-    // This prevents Render from receiving multiple
-    // TensorFlow requests simultaneously.
-    // ----------------------------------------------------
+    // This prevents Render from getting overloaded.
+    // ------------------------------------------------------
 
     if (
         predictionInProgress
@@ -2813,8 +3058,10 @@ async function sendFrameForPrediction() {
                         "POST",
 
                     headers: {
+
                         "Content-Type":
                             "application/json"
+
                     },
 
                     body:
@@ -2845,13 +3092,19 @@ async function sendFrameForPrediction() {
             );
 
 
+            statusElement.textContent =
+                "Prediction error: "
+                +
+                result.message;
+
+
             return;
 
         }
 
 
         // =================================================
-        // UPDATE FACE COUNT
+        // FACE COUNT
         // =================================================
 
         faceCountElement.textContent =
@@ -2863,7 +3116,9 @@ async function sendFrameForPrediction() {
         // =================================================
 
         if (
-            result.faces === 0
+            result.faces
+            ===
+            0
         ) {
 
             expressionElement.textContent =
@@ -2886,13 +3141,17 @@ async function sendFrameForPrediction() {
             );
 
 
+            statusElement.textContent =
+                "Camera running. No face detected.";
+
+
             return;
 
         }
 
 
         // =================================================
-        // UPDATE SMOOTHING
+        // FACE TRACKING / SMOOTHING
         // =================================================
 
         const tracks =
@@ -2902,7 +3161,7 @@ async function sendFrameForPrediction() {
 
 
         // =================================================
-        // CLEAR OVERLAY
+        // OVERLAY SIZE
         // =================================================
 
         overlay.width =
@@ -2922,7 +3181,7 @@ async function sendFrameForPrediction() {
 
 
         // =================================================
-        // RESULTS HTML
+        // RESULT HTML
         // =================================================
 
         let resultHTML =
@@ -2958,9 +3217,9 @@ async function sendFrameForPrediction() {
                 }
 
 
-                // =========================================
-                // DRAW FACE RECTANGLE
-                // =========================================
+                // -----------------------------------------
+                // FACE RECTANGLE
+                // -----------------------------------------
 
                 overlayContext.strokeStyle =
                     "#00ff00";
@@ -2971,16 +3230,21 @@ async function sendFrameForPrediction() {
 
 
                 overlayContext.strokeRect(
+
                     face.x,
+
                     face.y,
+
                     face.width,
+
                     face.height
+
                 );
 
 
-                // =========================================
-                // DRAW LABEL
-                // =========================================
+                // -----------------------------------------
+                // LABEL
+                // -----------------------------------------
 
                 const label =
                     smoothed.expression
@@ -3004,12 +3268,14 @@ async function sendFrameForPrediction() {
                     ).width;
 
 
-                const labelX =
+                let labelX =
                     face.x;
 
 
                 let labelY =
-                    face.y - 8;
+                    face.y
+                    -
+                    8;
 
 
                 if (
@@ -3033,10 +3299,15 @@ async function sendFrameForPrediction() {
 
 
                 overlayContext.fillRect(
+
                     labelX,
+
                     labelY - 20,
+
                     textWidth + 10,
+
                     25
+
                 );
 
 
@@ -3045,15 +3316,19 @@ async function sendFrameForPrediction() {
 
 
                 overlayContext.fillText(
+
                     label,
+
                     labelX + 5,
+
                     labelY
+
                 );
 
 
-                // =========================================
+                // -----------------------------------------
                 // RESULT CARD
-                // =========================================
+                // -----------------------------------------
 
                 resultHTML += `
 
@@ -3093,6 +3368,10 @@ async function sendFrameForPrediction() {
             resultHTML;
 
 
+        statusElement.textContent =
+            "Camera running. Face detection active.";
+
+
     }
     catch (error) {
 
@@ -3101,14 +3380,19 @@ async function sendFrameForPrediction() {
             error
         );
 
+
+        statusElement.textContent =
+            "Prediction request failed.";
+
     }
     finally {
 
-        // ------------------------------------------------
-        // IMPORTANT:
-        //
-        // Allow the next prediction request.
-        // ------------------------------------------------
+        // --------------------------------------------------
+        // VERY IMPORTANT
+        // --------------------------------------------------
+        // Allow the next request only after the previous
+        // request has completely finished.
+        // --------------------------------------------------
 
         predictionInProgress =
             false;
@@ -3163,7 +3447,7 @@ create_database()
 
 
 # ==========================================================
-# RUN FLASK SERVER
+# RUN SERVER
 # ==========================================================
 
 if __name__ == "__main__":
@@ -3190,19 +3474,6 @@ if __name__ == "__main__":
 
     print(
         f"http://127.0.0.1:{port}"
-    )
-
-
-    print()
-    print(
-        "Prediction interval:"
-        f" {PREDICTION_INTERVAL_MS} ms"
-    )
-
-
-    print(
-        "Database log interval:"
-        f" {DATABASE_LOG_INTERVAL} seconds"
     )
 
 
