@@ -17,8 +17,7 @@ Pillow
 
 
 # 4. Deep Learning and Neural Networks
-tensorflow
-
+tensorflow==2.20.0
 
 # 5. Machine Learning Utilities
 scikit-learn
