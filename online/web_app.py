@@ -1010,8 +1010,8 @@ def predict():
             face_detector.detectMultiScale(
                 gray,
                 scaleFactor=1.1,
-                minNeighbors=5,
-                minSize=(40, 40)
+                minNeighbors=8,
+                minSize=(80, 80)
             )
         )
 
@@ -2367,7 +2367,7 @@ startCameraButton
                 predictionInterval =
                     setInterval(
                         sendFrameForPrediction,
-                        700
+                        300
                     );
 
             }
