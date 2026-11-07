@@ -58,190 +58,340 @@ def load_predictions():
     return predictions
 
 
-def calculate_analytics(predictions):
+def load_sessions():
 
-    if len(predictions) == 0:
+    if not os.path.exists(DATABASE_PATH):
 
-        print("No prediction data available.")
+        print("Database not found.")
 
-        return
+        return []
 
-    expressions = [
-        prediction[3]
-        for prediction in predictions
-    ]
-
-    confidences = [
-        float(prediction[4])
-        for prediction in predictions
-    ]
-
-    faces_detected = [
-        int(prediction[5])
-        for prediction in predictions
-    ]
-
-    sessions = {
-        prediction[1]
-        for prediction in predictions
-    }
-
-    expression_counts = Counter(
-        expressions
+    connection = sqlite3.connect(
+        DATABASE_PATH
     )
 
-    total_predictions = (
-        len(predictions)
-    )
+    cursor = connection.cursor()
 
-    total_sessions = (
-        len(sessions)
-    )
+    cursor.execute("""
+        SELECT
+            id,
+            session_id,
+            start_time,
+            end_time,
+            duration_seconds,
+            total_predictions,
+            most_detected_expression,
+            average_confidence,
+            average_faces_detected
+        FROM sessions
+        ORDER BY id
+    """)
 
-    average_confidence = (
-        sum(confidences)
-        / total_predictions
-    )
+    sessions = cursor.fetchall()
 
-    average_faces = (
-        sum(faces_detected)
-        / total_predictions
-    )
+    connection.close()
 
-    most_detected_expression = (
-        expression_counts.most_common(1)[0][0]
-    )
+    return sessions
+
+
+def calculate_analytics(
+    predictions,
+    sessions
+):
 
     print()
     print("=" * 60)
     print("SESSION ANALYTICS")
     print("=" * 60)
 
-    print(
-        f"Total Predictions       : "
-        f"{total_predictions}"
-    )
 
-    print(
-        f"Total Sessions          : "
-        f"{total_sessions}"
-    )
+    # ========================================================
+    # PREDICTION ANALYTICS
+    # ========================================================
 
-    print(
-        f"Average Confidence      : "
-        f"{average_confidence:.2f}%"
-    )
+    if len(predictions) == 0:
 
-    print(
-        f"Average Faces Detected  : "
-        f"{average_faces:.2f}"
-    )
-
-    print(
-        f"Most Detected Expression: "
-        f"{most_detected_expression}"
-    )
-
-    print()
-    print("=" * 60)
-    print("EXPRESSION ANALYSIS")
-    print("=" * 60)
-
-    print(
-        f"{'Expression':<12}"
-        f"{'Count':<10}"
-        f"{'Percentage':<12}"
-    )
-
-    print("-" * 60)
-
-    for expression in CLASS_NAMES:
-
-        count = expression_counts.get(
-            expression,
-            0
+        print(
+            "No prediction data available."
         )
 
-        percentage = (
-            count
+    else:
+
+        expressions = [
+            prediction[3]
+            for prediction in predictions
+        ]
+
+        confidences = [
+            float(prediction[4])
+            for prediction in predictions
+        ]
+
+        faces_detected = [
+            int(prediction[5])
+            for prediction in predictions
+        ]
+
+        expression_counts = Counter(
+            expressions
+        )
+
+        total_predictions = (
+            len(predictions)
+        )
+
+        # Count unique sessions from predictions
+        prediction_sessions = {
+            prediction[1]
+            for prediction in predictions
+        }
+
+        total_prediction_sessions = (
+            len(prediction_sessions)
+        )
+
+        average_confidence = (
+            sum(confidences)
             / total_predictions
-            * 100
+        )
+
+        average_faces = (
+            sum(faces_detected)
+            / total_predictions
+        )
+
+        most_detected_expression = (
+            expression_counts
+            .most_common(1)[0][0]
         )
 
         print(
-            f"{expression:<12}"
-            f"{count:<10}"
-            f"{percentage:.2f}%"
+            f"Total Predictions       : "
+            f"{total_predictions}"
         )
 
-    print("-" * 60)
+        print(
+            f"Total Sessions          : "
+            f"{len(sessions)}"
+        )
+
+        print(
+            f"Sessions With Predictions: "
+            f"{total_prediction_sessions}"
+        )
+
+        print(
+            f"Average Confidence      : "
+            f"{average_confidence:.2f}%"
+        )
+
+        print(
+            f"Average Faces Detected  : "
+            f"{average_faces:.2f}"
+        )
+
+        print(
+            f"Most Detected Expression: "
+            f"{most_detected_expression}"
+        )
+
+
+    # ========================================================
+    # EXPRESSION ANALYSIS
+    # ========================================================
+
+    if len(predictions) > 0:
+
+        print()
+        print("=" * 60)
+        print("EXPRESSION ANALYSIS")
+        print("=" * 60)
+
+        print(
+            f"{'Expression':<12}"
+            f"{'Count':<10}"
+            f"{'Percentage':<12}"
+        )
+
+        print("-" * 60)
+
+        expressions = [
+            prediction[3]
+            for prediction in predictions
+        ]
+
+        expression_counts = Counter(
+            expressions
+        )
+
+        total_predictions = (
+            len(predictions)
+        )
+
+        for expression in CLASS_NAMES:
+
+            count = expression_counts.get(
+                expression,
+                0
+            )
+
+            percentage = (
+                count
+                / total_predictions
+                * 100
+            )
+
+            print(
+                f"{expression:<12}"
+                f"{count:<10}"
+                f"{percentage:.2f}%"
+            )
+
+        print("-" * 60)
+
+
+    # ========================================================
+    # SESSION LIST
+    # ========================================================
 
     print()
     print("=" * 60)
     print("SESSION LIST")
     print("=" * 60)
 
-    for session_id in sorted(
-        sessions
-    ):
 
-        session_records = [
-            prediction
-            for prediction in predictions
-            if prediction[1] == session_id
-        ]
+    if len(sessions) == 0:
 
-        session_expressions = [
-            prediction[3]
-            for prediction in session_records
-        ]
-
-        session_confidences = [
-            float(prediction[4])
-            for prediction in session_records
-        ]
-
-        session_most_common = (
-            Counter(
-                session_expressions
-            ).most_common(1)[0][0]
+        print(
+            "No sessions available."
         )
 
-        session_average_confidence = (
-            sum(session_confidences)
-            / len(session_confidences)
-        )
+        return
+
+
+    for session in sessions:
+
+        (
+            session_db_id,
+            session_id,
+            start_time,
+            end_time,
+            duration_seconds,
+            total_predictions,
+            most_detected_expression,
+            average_confidence,
+            average_faces_detected
+        ) = session
+
 
         print()
+
         print(
             f"Session ID          : "
             f"{session_id}"
         )
 
         print(
+            f"Start Time          : "
+            f"{start_time}"
+        )
+
+        if end_time:
+
+            print(
+                f"End Time            : "
+                f"{end_time}"
+            )
+
+        else:
+
+            print(
+                f"End Time            : "
+                f"Active / Not ended"
+            )
+
+
+        if duration_seconds is not None:
+
+            print(
+                f"Duration            : "
+                f"{float(duration_seconds):.2f} seconds"
+            )
+
+        else:
+
+            print(
+                f"Duration            : "
+                f"N/A"
+            )
+
+
+        print(
             f"Predictions         : "
-            f"{len(session_records)}"
+            f"{total_predictions or 0}"
         )
 
-        print(
-            f"Most Detected       : "
-            f"{session_most_common}"
-        )
 
-        print(
-            f"Average Confidence  : "
-            f"{session_average_confidence:.2f}%"
-        )
+        if most_detected_expression:
+
+            print(
+                f"Most Detected       : "
+                f"{most_detected_expression}"
+            )
+
+        else:
+
+            print(
+                f"Most Detected       : "
+                f"N/A"
+            )
+
+
+        if average_confidence is not None:
+
+            print(
+                f"Average Confidence  : "
+                f"{float(average_confidence):.2f}%"
+            )
+
+        else:
+
+            print(
+                f"Average Confidence  : "
+                f"N/A"
+            )
+
+
+        if average_faces_detected is not None:
+
+            print(
+                f"Average Faces       : "
+                f"{float(average_faces_detected):.2f}"
+            )
+
+        else:
+
+            print(
+                f"Average Faces       : "
+                f"N/A"
+            )
+
+        print("-" * 60)
 
 
 def main():
 
-    print("FACIAL EXPRESSION ANALYTICS")
+    print(
+        "FACIAL EXPRESSION ANALYTICS"
+    )
 
     predictions = load_predictions()
 
+    sessions = load_sessions()
+
     calculate_analytics(
-        predictions
+        predictions,
+        sessions
     )
 
 
