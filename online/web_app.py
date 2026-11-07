@@ -1984,7 +1984,7 @@ startCameraButton
                 predictionInterval =
                     setInterval(
                         sendFrameForPrediction,
-                        500
+                        1000
                     );
 
             }
