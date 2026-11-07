@@ -26,7 +26,4 @@ scikit-learn
 
 # 6. Web Application and Dashboard
 streamlit
-
-# 7. Web Application and Dashboard
-streamlit
 Flask
