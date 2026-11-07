@@ -3447,7 +3447,7 @@ create_database()
 
 
 # ==========================================================
-# RUN SERVER
+# RUN FLASK SERVER
 # ==========================================================
 
 if __name__ == "__main__":
@@ -3459,32 +3459,26 @@ if __name__ == "__main__":
         )
     )
 
-
     print()
     print("=" * 60)
     print("ONLINE FACIAL EXPRESSION RECOGNITION")
     print("=" * 60)
-
 
     print()
     print(
         "Open in browser:"
     )
 
-
     print(
         f"http://127.0.0.1:{port}"
     )
-
 
     print()
     print(
         "Server running..."
     )
 
-
     print("=" * 60)
-
 
     app.run(
         host="0.0.0.0",
