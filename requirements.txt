@@ -27,3 +27,4 @@ scikit-learn
 # 6. Web Application and Dashboard
 streamlit
 Flask
+gunicorn

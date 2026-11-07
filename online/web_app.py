@@ -2961,3 +2961,40 @@ if __name__ == "__main__":
         port=port,
         debug=False
     )    
+    
+if __name__ == "__main__":
+
+    port = int(
+        os.environ.get(
+            "PORT",
+            5000
+        )
+    )
+
+    print()
+    print("=" * 60)
+    print("ONLINE FACIAL EXPRESSION RECOGNITION")
+    print("=" * 60)
+
+    print()
+    print(
+        "Open in browser:"
+    )
+
+    print(
+        f"http://127.0.0.1:{port}"
+    )
+
+    print()
+
+    print(
+        "Server running..."
+    )
+
+    print("=" * 60)
+
+    app.run(
+        host="0.0.0.0",
+        port=port,
+        debug=False
+    )
